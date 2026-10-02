@@ -1,0 +1,39 @@
+name: Keep Supabase projects awake
+on:
+  schedule:
+    - cron: '0 8 */3 * *'   # elke 3 dagen om 08:00 UTC
+  workflow_dispatch: {}      # handmatig kunnen starten
+permissions:
+  contents: write            # nodig voor de heartbeat-commit
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Verzamelingen-project
+        run: |
+          curl -s -o /dev/null -w "Verzamelingen: %{http_code}\n" \
+          "https://dckojtvyxqsgvcfgufpf.supabase.co/rest/v1/pokemon?select=id&limit=1" \
+          -H "apikey: sb_publishable_KELGR-EkKYZBF_knnwdNvg_vA966Yqr"
+      - name: Ping Huishouden-project
+        run: |
+          curl -s -o /dev/null -w "Huishouden: %{http_code}\n" \
+          "https://vlhjikyslkkekxtapzqj.supabase.co/rest/v1/categories?select=id&limit=1" \
+          -H "apikey: sb_publishable_bWtpObTiK7mmEiQYHZuvgA_upVn7e2I"
+
+      # GitHub schakelt geplande workflows uit na 60 dagen zonder repo-activiteit.
+      # Daarom: als de laatste commit ouder is dan 30 dagen, een kleine heartbeat-commit maken.
+      - uses: actions/checkout@v4
+      - name: Heartbeat-commit (max. 1x per 30 dagen)
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          if [ $(( (now - last) / 86400 )) -ge 30 ]; then
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > last-heartbeat.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add last-heartbeat.txt
+            git commit -m "Heartbeat: repo actief houden"
+            git push
+          else
+            echo "Laatste commit is recent genoeg, geen heartbeat nodig."
+          fi
